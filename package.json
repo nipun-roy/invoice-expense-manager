@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "cd client && npm install && npm run build",
-    "build:all": "cd client && npm run build && cd ../server && npm run build",
+    "build": "cd client && npm install --include=dev && npm run build",
+    "build:all": "cd client && npm install --include=dev && npm run build && cd ../server && npm run build",
     "type-check": "cd server && npm run type-check && cd ../client && npm run lint"
   },
   "dependencies": {
@@ -27,6 +27,8 @@
     "@types/jsonwebtoken": "^9.0.6",
     "@types/node": "^20.12.7",
     "@types/pdfkit": "^0.17.6",
+    "@types/react": "^18.3.1",
+    "@types/react-dom": "^18.3.0",
     "typescript": "^5.4.5"
   }
 }
