@@ -24,21 +24,36 @@ export const connectDB = async (): Promise<typeof mongoose | void> => {
   }
 
   if (!cached.promise) {
-    const opts: mongoose.ConnectOptions = {
-      bufferCommands: false,
-      serverSelectionTimeoutMS: 5000,
-    };
+    cached.promise = (async () => {
+      // 1. If MONGO_URI is provided and not default local, or if on Vercel, try it directly
+      if (env.MONGO_URI && (process.env.VERCEL || !env.MONGO_URI.includes('localhost'))) {
+        try {
+          const conn = await mongoose.connect(env.MONGO_URI, {
+            bufferCommands: false,
+            serverSelectionTimeoutMS: 5000,
+          });
+          console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
+          return conn;
+        } catch (err) {
+          console.error('Remote MongoDB connection error:', (err as Error).message);
+          if (process.env.VERCEL) throw err;
+        }
+      }
 
-    if (env.MONGO_URI) {
-      cached.promise = mongoose.connect(env.MONGO_URI, opts).then((m) => {
-        console.log(`✅ MongoDB Connected: ${m.connection.host}`);
-        return m;
-      });
-    } else {
+      // 2. In local development, try local MongoDB first; if refused, boot embedded MongoMemoryServer
       if (env.NODE_ENV === 'development') {
-        console.log('Local MongoDB not detected on port 27017.');
-        console.log('Starting embedded development database (mongodb-memory-server)...');
-        cached.promise = (async () => {
+        try {
+          const conn = await mongoose.connect(env.MONGO_URI || 'mongodb://127.0.0.1:27017/invoice_expense_manager', {
+            serverSelectionTimeoutMS: 1500,
+          });
+          console.log(`✅ Local MongoDB Connected: ${conn.connection.host}`);
+          return conn;
+        } catch (err) {
+          console.log('Local MongoDB not detected on port 27017.');
+          console.log('Starting embedded development database (mongodb-memory-server)...');
+        }
+
+        try {
           const { MongoMemoryServer } = await import('mongodb-memory-server');
           const memoryServer = await MongoMemoryServer.create({
             instance: { dbName: 'invoice_expense_manager' },
@@ -47,25 +62,22 @@ export const connectDB = async (): Promise<typeof mongoose | void> => {
           const conn = await mongoose.connect(uri);
           console.log(`✅ Embedded Development Database Connected: ${conn.connection.host}`);
           return conn;
-        })();
-      } else {
-        console.warn('MONGO_URI not configured. Database connection skipped.');
-        return;
+        } catch (memErr) {
+          console.error('Failed to initialize embedded database:', memErr);
+          throw memErr;
+        }
       }
-    }
+
+      throw new Error('No MongoDB connection available');
+    })();
   }
 
   try {
     cached.conn = await cached.promise;
+    return cached.conn;
   } catch (error) {
     cached.promise = null;
     console.error('MongoDB connection notice:', (error as Error).message);
-    if (env.NODE_ENV === 'development') {
-      console.log('Server continuing in offline-DB mode for baseline health checks.');
-      return;
-    }
     throw error;
   }
-
-  return cached.conn;
 };
