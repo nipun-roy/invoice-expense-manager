@@ -3,8 +3,12 @@ import app from '../server/src/server.js';
 import { connectDB } from '../server/src/config/db.js';
 
 export default async function handler(req: Request, res: Response) {
-  // 1. Ensure safe Mongoose connection is ready before processing API requests
-  await connectDB();
+  // 1. Attempt MongoDB connection without crashing the Lambda process
+  try {
+    await connectDB();
+  } catch (err) {
+    console.error('Serverless DB initialization notice:', (err as Error).message);
+  }
 
   // 2. Normalize path if Vercel serverless rewrite stripped the /api prefix
   if (req.url && !req.url.startsWith('/api')) {

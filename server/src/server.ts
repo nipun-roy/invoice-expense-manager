@@ -1,6 +1,7 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
+import mongoose from 'mongoose';
 import { env } from './config/env.js';
 import { connectDB } from './config/db.js';
 import { errorHandler } from './middleware/error.middleware.js';
@@ -58,13 +59,32 @@ app.use(async (_req, _res, next) => {
   }
 });
 
-// Health Check Endpoint
+// Health Check & Database Diagnostic Endpoint
 app.get('/api/health', (_req: Request, res: Response) => {
-  res.status(200).json({
-    status: 'ok',
-    message: 'Invoice & Expense Manager API is healthy',
+  const readyState = mongoose.connection.readyState;
+  const states: Record<number, string> = {
+    0: 'disconnected',
+    1: 'connected',
+    2: 'connecting',
+    3: 'disconnecting',
+  };
+
+  const isConnected = readyState === 1;
+
+  res.status(isConnected ? 200 : 503).json({
+    status: isConnected ? 'ok' : 'degraded',
+    message: isConnected
+      ? 'Invoice & Expense Manager API and Database are fully operational'
+      : 'API is running but Database connection is not ready',
+    database: {
+      connected: isConnected,
+      state: states[readyState] || 'unknown',
+      host: mongoose.connection.host || null,
+      name: mongoose.connection.name || null,
+    },
     timestamp: new Date().toISOString(),
     environment: env.NODE_ENV,
+    isVercel: Boolean(process.env.VERCEL),
   });
 });
 
