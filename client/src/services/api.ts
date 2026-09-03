@@ -14,6 +14,7 @@ api.interceptors.response.use(
     // Standardize error message extraction
     const message =
       error.response?.data?.message ||
+      error.response?.data?.error?.message ||
       (error.response?.data?.errors
         ? Object.values(error.response.data.errors).join(', ')
         : null) ||
